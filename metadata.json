@@ -1,0 +1,5 @@
+{
+  "name": "Music Theory Visualizer",
+  "description": "An interactive music theory app that visualizes scales and chords, generates musically inspired art, and answers your theory questions with a helpful AI chatbot.",
+  "requestFramePermissions": []
+}

@@ -1,12 +1,27 @@
 
 import { GoogleGenAI, Type, Chat } from '@google/genai';
-import type { MusicTheoryInfo } from '../types';
+import type { MusicTheoryInfo, ChordProgression } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable is not set.");
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const noteSchema = {
+    type: Type.OBJECT,
+    properties: {
+      name: {
+        type: Type.STRING,
+        description: "The note name, e.g., 'C', 'D#', 'Fb'.",
+      },
+      octave: {
+        type: Type.INTEGER,
+        description: 'The octave number for the note (e.g., 4 for middle C).',
+      },
+    },
+    required: ['name', 'octave'],
+};
 
 const musicSchema = {
   type: Type.OBJECT,
@@ -31,23 +46,30 @@ const musicSchema = {
     notes: {
       type: Type.ARRAY,
       description: 'An array of notes in the scale or chord.',
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          name: {
-            type: Type.STRING,
-            description: "The note name, e.g., 'C', 'D#', 'Fb'.",
-          },
-          octave: {
-            type: Type.INTEGER,
-            description: 'The octave number for the note (e.g., 4 for middle C).',
-          },
-        },
-        required: ['name', 'octave'],
-      },
+      items: noteSchema,
     },
   },
   required: ['type', 'name', 'rootNote', 'quality', 'notes'],
+};
+
+const chordProgressionSchema = {
+    type: Type.ARRAY,
+    description: "A sequence of chords forming a progression.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            name: {
+                type: Type.STRING,
+                description: 'The name of the chord, e.g., "C Major" or "G7".'
+            },
+            notes: {
+                type: Type.ARRAY,
+                description: "The notes that make up the chord.",
+                items: noteSchema,
+            },
+        },
+        required: ['name', 'notes'],
+    }
 };
 
 export async function parseMusicRequest(request: string): Promise<MusicTheoryInfo | null> {
@@ -68,6 +90,26 @@ export async function parseMusicRequest(request: string): Promise<MusicTheoryInf
     console.error('Error parsing music request:', error);
     return null;
   }
+}
+
+export async function generateChordProgression(request: string): Promise<ChordProgression | null> {
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `Generate a common, 4-chord progression for the key of "${request}". The first note of each chord should be in the 4th octave.`,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: chordProgressionSchema,
+            },
+        });
+
+        const jsonText = response.text.trim();
+        const parsed = JSON.parse(jsonText);
+        return parsed as ChordProgression;
+    } catch (error) {
+        console.error('Error generating chord progression:', error);
+        return null;
+    }
 }
 
 export async function generateImage(prompt: string): Promise<string> {

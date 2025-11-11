@@ -1,12 +1,14 @@
 
-import React from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import PianoKeyboard from './PianoKeyboard';
-import { AppState, MusicTheoryInfo } from '../types';
-import { MusicNoteIcon, ImageIcon, AlertTriangleIcon, LoadingSpinner } from './icons';
+import { AppState, MusicTheoryInfo, ChordProgression } from '../types';
+import { MusicNoteIcon, ImageIcon, AlertTriangleIcon, LoadingSpinner, PlayIcon, StopIcon } from './icons';
+import { playProgression, stopAllAudio, getAudioContext } from '../utils/audio';
 
 interface VisualizationPanelProps {
   appState: AppState;
   visualizationInfo: MusicTheoryInfo | null;
+  progression: ChordProgression | null;
   generatedImage: string | null;
   error: string | null;
 }
@@ -14,9 +16,47 @@ interface VisualizationPanelProps {
 const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
   appState,
   visualizationInfo,
+  progression,
   generatedImage,
   error,
 }) => {
+  const [activeChordIndex, setActiveChordIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    setActiveChordIndex(0);
+    stopAllAudio(audioContextRef.current);
+    setIsPlaying(false);
+  }, [progression, visualizationInfo, generatedImage, error]);
+
+  useEffect(() => {
+    // Cleanup audio on unmount
+    return () => {
+        stopAllAudio(audioContextRef.current);
+    };
+  }, []);
+
+  const handlePlayProgression = useCallback(() => {
+    if (!progression) return;
+
+    if (isPlaying) {
+        stopAllAudio(audioContextRef.current);
+        setIsPlaying(false);
+        return;
+    }
+    
+    audioContextRef.current = getAudioContext();
+    setIsPlaying(true);
+    playProgression(
+      progression,
+      audioContextRef.current,
+      120, // tempo
+      (index) => setActiveChordIndex(index), // onNoteChange
+      () => setIsPlaying(false) // onFinish
+    );
+  }, [progression, isPlaying]);
+
   const renderContent = () => {
     if (appState === AppState.Error && error) {
       return (
@@ -28,20 +68,17 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
       );
     }
     
-    if (appState === AppState.Visualizing) {
+    const loadingStates: Partial<Record<AppState, string>> = {
+      [AppState.Visualizing]: 'Analyzing music theory...',
+      [AppState.GeneratingProgression]: 'Generating chord progression...',
+      [AppState.GeneratingImage]: 'Generating musical artwork...',
+    };
+    
+    if (loadingStates[appState]) {
       return (
         <div className="text-center flex flex-col items-center justify-center gap-4">
           <LoadingSpinner className="w-12 h-12" />
-          <p className="text-lg text-gray-400 animate-pulse">Analyzing music theory...</p>
-        </div>
-      );
-    }
-
-    if (appState === AppState.GeneratingImage) {
-      return (
-        <div className="text-center flex flex-col items-center justify-center gap-4">
-          <LoadingSpinner className="w-12 h-12" />
-          <p className="text-lg text-gray-400 animate-pulse">Generating musical artwork...</p>
+          <p className="text-lg text-gray-400 animate-pulse">{loadingStates[appState]}</p>
         </div>
       );
     }
@@ -50,6 +87,36 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
         return (
             <div className="w-full h-full flex flex-col items-center justify-center">
                  <img src={generatedImage} alt="Generated art" className="object-contain w-full h-full rounded-lg" />
+            </div>
+        )
+    }
+
+    if (progression) {
+        return (
+            <div className="flex flex-col items-center justify-center w-full h-full p-4">
+                <div className="flex items-center gap-4 mb-4">
+                    <h3 className="text-2xl font-bold text-cyan-300">Chord Progression</h3>
+                    <button 
+                        onClick={handlePlayProgression}
+                        className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-500 transition-colors"
+                    >
+                        {isPlaying ? <StopIcon className="w-5 h-5"/> : <PlayIcon className="w-5 h-5"/>}
+                        {isPlaying ? 'Stop' : 'Play'}
+                    </button>
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-2 mb-4">
+                    {progression.map((chord, index) => (
+                        <button 
+                            key={index}
+                            onClick={() => setActiveChordIndex(index)}
+                            className={`px-4 py-2 rounded-md transition-all duration-200 ${activeChordIndex === index ? 'bg-cyan-500 text-white shadow-lg scale-105' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                        >
+                            {chord.name}
+                        </button>
+                    ))}
+                </div>
+                <PianoKeyboard highlightedNotes={progression[activeChordIndex]?.notes || []} />
             </div>
         )
     }

@@ -4,17 +4,19 @@ import type { Chat } from '@google/genai';
 import ChatPanel from './components/ChatPanel';
 import ControlsPanel from './components/ControlsPanel';
 import VisualizationPanel from './components/VisualizationPanel';
-import { MusicTheoryInfo, ChatMessage, AppState } from './types';
+import { MusicTheoryInfo, ChatMessage, AppState, ChordProgression } from './types';
 import { 
   parseMusicRequest, 
   generateImage, 
-  createChatSession 
+  createChatSession,
+  generateChordProgression
 } from './services/geminiService';
 import { MusicNoteIcon } from './components/icons';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.Ready);
   const [visualizationInfo, setVisualizationInfo] = useState<MusicTheoryInfo | null>(null);
+  const [progression, setProgression] = useState<ChordProgression | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -26,14 +28,20 @@ const App: React.FC = () => {
     chatRef.current = createChatSession();
     setChatMessages([{
       sender: 'bot',
-      text: "Hello! I'm your music theory assistant. Ask me anything about music, or use the controls to visualize a scale or chord.",
+      text: "Hello! I'm your music theory assistant. Ask me anything about music, or use the controls to visualize scales, chords, and progressions.",
     }]);
   }, []);
 
+  const clearVisualizations = () => {
+    setVisualizationInfo(null);
+    setProgression(null);
+    setGeneratedImage(null);
+    setError(null);
+  }
+
   const handleVisualize = useCallback(async (request: string) => {
     setAppState(AppState.Visualizing);
-    setError(null);
-    setGeneratedImage(null); // Clear previous image
+    clearVisualizations();
     try {
       const result = await parseMusicRequest(request);
       if (result) {
@@ -47,6 +55,25 @@ const App: React.FC = () => {
       console.error(errorMessage);
       setError(errorMessage);
       setAppState(AppState.Error);
+    }
+  }, []);
+
+  const handleGenerateProgression = useCallback(async (request: string) => {
+    setAppState(AppState.GeneratingProgression);
+    clearVisualizations();
+    try {
+      const result = await generateChordProgression(request);
+      if (result && result.length > 0) {
+        setProgression(result);
+        setAppState(AppState.Ready);
+      } else {
+        throw new Error("Could not generate a progression. Try a key like 'C Major' or 'A minor'.");
+      }
+    } catch (e: unknown) {
+        const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred during progression generation.';
+        console.error(errorMessage);
+        setError(errorMessage);
+        setAppState(AppState.Error);
     }
   }, []);
 
@@ -120,14 +147,17 @@ const App: React.FC = () => {
             <VisualizationPanel
               appState={appState}
               visualizationInfo={visualizationInfo}
+              progression={progression}
               generatedImage={generatedImage}
               error={error}
             />
             <ControlsPanel
               onVisualize={handleVisualize}
+              onGenerateProgression={handleGenerateProgression}
               onGenerateImage={handleGenerateImage}
-              isLoading={appState === AppState.Visualizing || appState === AppState.GeneratingImage}
+              isLoading={appState === AppState.Visualizing || appState === AppState.GeneratingImage || appState === AppState.GeneratingProgression}
               visualizationInfo={visualizationInfo}
+              progression={progression}
             />
         </div>
       </main>

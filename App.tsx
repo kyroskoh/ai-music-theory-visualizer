@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Chat } from '@google/genai';
 import ChatPanel from './components/ChatPanel';
@@ -130,7 +129,7 @@ const App: React.FC = () => {
         <div className="container mx-auto flex items-center justify-center">
           <MusicNoteIcon className="h-8 w-8 text-cyan-400 mr-3" />
           <h1 className="text-2xl font-bold tracking-tight text-white">
-            Gemini Music Theory Visualizer
+            AI Music Theory Visualizer
           </h1>
         </div>
       </header>
